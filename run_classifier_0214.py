@@ -780,18 +780,28 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
     features.append(feature)
   return features
 
+
+
+import pandas as pd
 class SelfProcessor(DataProcessor):
-    """Processor for the CoLA data set (GLUE version)."""
 
     def get_train_examples(self, data_dir):
-        file_path = os.path.join(data_dir, 'train.tsv')
-        with open(file_path, 'r', encoding="utf-8") as f:
-            reader = f.readlines()
+        file_path = os.path.join(data_dir, 'atec_nlp_sim_train_0.6.csv')
+        reader=pd.read_csv(file_path, encoding='utf-8',error_bad_lines=False)
+        # 如果数据不是乱序的，注意要shuffle
+        # 这里的数据量比较大，取部分跑一下
+        reader = reader.head(3000)
+        print("train length:",len(reader))
+
         examples = []
-        for index, line in enumerate(reader):
-            guid = 'train-%d' % index
+        for _,row in reader.iterrows():
+            line=row[0]
+            # print(line)
             split_line = line.strip().split("\t")
-            print(split_line)
+            if len(split_line)!=4:
+                continue
+
+            guid = split_line[0]
             text_a = tokenization.convert_to_unicode(split_line[1])
             text_b = tokenization.convert_to_unicode(split_line[2])
             label = split_line[3]
@@ -800,13 +810,21 @@ class SelfProcessor(DataProcessor):
         return examples
 
     def get_dev_examples(self, data_dir):
-        file_path = os.path.join(data_dir, 'val.tsv')
-        with open(file_path, 'r', encoding="utf-8") as f:
-            reader = f.readlines()
+        file_path = os.path.join(data_dir, 'atec_nlp_sim_test_0.4.csv')
+        reader=pd.read_csv(file_path, encoding='utf-8',error_bad_lines=False)
+        #如果数据不是乱序的，注意要shuffle
+        #这里的数据量比较大，取部分跑一下
+        reader=reader.tail(500)
+
         examples = []
-        for index, line in enumerate(reader):
-            guid = 'train-%d' % index
+        for _,row in reader.iterrows():
+            line=row[0]
+            # print(line)
             split_line = line.strip().split("\t")
+            if len(split_line)!=4:
+                continue
+
+            guid = split_line[0]
             text_a = tokenization.convert_to_unicode(split_line[1])
             text_b = tokenization.convert_to_unicode(split_line[2])
             label = split_line[3]
@@ -815,14 +833,20 @@ class SelfProcessor(DataProcessor):
         return examples
 
     def get_test_examples(self, data_dir):
-        """See base class."""
-        file_path = os.path.join(data_dir, 'test.tsv')
-        with open(file_path, 'r', encoding="utf-8") as f:
-            reader = f.readlines()
+        file_path = os.path.join(data_dir, 'atec_nlp_sim_test_0.4.csv')
+        reader=pd.read_csv(file_path, encoding='utf-8',error_bad_lines=False)
+        # 这里的数据量比较大，取部分跑一下,跟验证集的数据区分开
+        reader = reader.head(100)
+
         examples = []
-        for index, line in enumerate(reader):
-            guid = 'train-%d' % index
+        for _,row in reader.iterrows():
+            line=row[0]
+            # print(line)
             split_line = line.strip().split("\t")
+            if len(split_line)!=4:
+                continue
+
+            guid = split_line[0]
             text_a = tokenization.convert_to_unicode(split_line[1])
             text_b = tokenization.convert_to_unicode(split_line[2])
             label = split_line[3]
@@ -851,6 +875,7 @@ class SelfProcessor(DataProcessor):
             examples.append(
                 InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
+
 
 
 def main(_):
@@ -912,6 +937,7 @@ def main(_):
   num_warmup_steps = None
 
   train_examples = processor.get_train_examples(FLAGS.data_dir)
+  # print("len of train_examples:",len(train_examples))
 
   if FLAGS.do_train:
     num_train_steps = int(
@@ -939,6 +965,68 @@ def main(_):
       train_batch_size=FLAGS.train_batch_size,
       eval_batch_size=FLAGS.eval_batch_size,
       predict_batch_size=FLAGS.predict_batch_size)
+
+
+  if FLAGS.do_train:
+    train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
+    file_based_convert_examples_to_features(
+        train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
+    tf.logging.info("***** Running training *****")
+    tf.logging.info("  Num examples = %d", len(train_examples))
+    tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
+    tf.logging.info("  Num steps = %d", num_train_steps)
+    train_input_fn = file_based_input_fn_builder(
+        input_file=train_file,
+        seq_length=FLAGS.max_seq_length,
+        is_training=True,
+        drop_remainder=True)
+    estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
+
+  if FLAGS.do_eval:
+    eval_examples = processor.get_dev_examples(FLAGS.data_dir)
+    num_actual_eval_examples = len(eval_examples)
+    if FLAGS.use_tpu:
+      # TPU requires a fixed batch size for all batches, therefore the number
+      # of examples must be a multiple of the batch size, or else examples
+      # will get dropped. So we pad with fake examples which are ignored
+      # later on. These do NOT count towards the metric (all tf.metrics
+      # support a per-instance weight, and these get a weight of 0.0).
+      while len(eval_examples) % FLAGS.eval_batch_size != 0:
+        eval_examples.append(PaddingInputExample())
+
+    eval_file = os.path.join(FLAGS.output_dir, "eval.tf_record")
+    file_based_convert_examples_to_features(
+        eval_examples, label_list, FLAGS.max_seq_length, tokenizer, eval_file)
+
+    tf.logging.info("***** Running evaluation *****")
+    tf.logging.info("  Num examples = %d (%d actual, %d padding)",
+                    len(eval_examples), num_actual_eval_examples,
+                    len(eval_examples) - num_actual_eval_examples)
+    tf.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
+
+    # This tells the estimator to run through the entire set.
+    eval_steps = None
+    # However, if running eval on the TPU, you will need to specify the
+    # number of steps.
+    if FLAGS.use_tpu:
+      assert len(eval_examples) % FLAGS.eval_batch_size == 0
+      eval_steps = int(len(eval_examples) // FLAGS.eval_batch_size)
+
+    eval_drop_remainder = True if FLAGS.use_tpu else False
+    eval_input_fn = file_based_input_fn_builder(
+        input_file=eval_file,
+        seq_length=FLAGS.max_seq_length,
+        is_training=False,
+        drop_remainder=eval_drop_remainder)
+
+    result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
+
+    output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
+    with tf.gfile.GFile(output_eval_file, "w") as writer:
+      tf.logging.info("***** Eval results *****")
+      for key in sorted(result.keys()):
+        tf.logging.info("  %s = %s", key, str(result[key]))
+        writer.write("%s = %s\n" % (key, str(result[key])))
 
   if FLAGS.do_predict:
     predict_examples = processor.get_test_examples(FLAGS.data_dir)
@@ -985,56 +1073,6 @@ def main(_):
         writer.write(output_line)
         num_written_lines += 1
     assert num_written_lines == num_actual_predict_examples
-
-  if FLAGS.do_train:
-    train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
-    file_based_convert_examples_to_features(
-        train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
-
-    tf.logging.info("***** Running training *****")
-    tf.logging.info("  Num examples = %d", len(train_examples))
-    tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
-    tf.logging.info("  Num steps = %d", num_train_steps)
-    train_input_fn = file_based_input_fn_builder(
-        input_file=train_file,
-        seq_length=FLAGS.max_seq_length,
-        is_training=True,
-        drop_remainder=True)
-    estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
-
-  if FLAGS.do_eval:
-    eval_examples = processor.get_dev_examples(FLAGS.data_dir)
-    eval_file = os.path.join(FLAGS.output_dir, "eval.tf_record")
-
-    tf.logging.info("***** Running evaluation *****")
-    tf.logging.info("  Num examples = %d", len(eval_examples))
-    tf.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
-
-    # This tells the estimator to run through the entire set.
-    eval_steps = None
-    # However, if running eval on the TPU, you will need to specify the
-    # number of steps.
-    if FLAGS.use_tpu:
-      assert len(eval_examples) % FLAGS.eval_batch_size == 0
-      eval_steps = int(len(eval_examples) // FLAGS.eval_batch_size)
-
-    eval_drop_remainder = True if FLAGS.use_tpu else False
-    eval_input_fn = file_based_input_fn_builder(
-        input_file=eval_file,
-        seq_length=FLAGS.max_seq_length,
-        is_training=False,
-        drop_remainder=eval_drop_remainder)
-
-    result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
-
-    output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
-    with tf.gfile.GFile(output_eval_file, "w") as writer:
-      tf.logging.info("***** Eval results *****")
-      for key in sorted(result.keys()):
-        tf.logging.info("  %s = %s", key, str(result[key]))
-        writer.write("%s = %s\n" % (key, str(result[key])))
-
-
 
 
 
