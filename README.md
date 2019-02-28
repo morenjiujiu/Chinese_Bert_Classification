@@ -8,7 +8,7 @@
 - tensorflow1.12
 
 
-##任务1 判断文本相似性
+## 任务1 判断文本相似性
 #### 数据说明
 - 运行时数据所在目录为/Users/luyao/Desktop/bert_learn/MAYI，在这里为了方便起见我把数据一起上传了  
 - atec_nlp_sim_train_0.6.csv和atec_nlp_sim_test_0.4.csv格式相同，各列分别为"index query1 query2 label"，"\t"分隔。来自网络上蚂蚁金服的公开数据集，是判断文本相似性的数据  
@@ -78,7 +78,7 @@ export TRAINED_CLASSIFIER=./tmp/mayi_output  这是上一步训练后的输出�
 
 
 
-##任务2 文本多分类
+## 任务2 文本多分类
 #### 数据说明
 - 运行时数据所在目录为/Users/luyao/Desktop/bert_learn/CNEWS
 - 数据较大无法上传 链接:https://pan.baidu.com/s/1ZDez64S9cnzNnucIOrPapQ  密码:vutp
