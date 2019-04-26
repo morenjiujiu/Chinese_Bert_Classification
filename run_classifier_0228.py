@@ -821,7 +821,7 @@ class SelfProcessor(DataProcessor):
       reader = reader[0:200]
 
       examples = []
-      labels = []
+      #labels = []
       for index, line in enumerate(reader):
           guid = 'train-%d' % index
           split_line = line.strip().split("\t")
@@ -830,8 +830,8 @@ class SelfProcessor(DataProcessor):
           label = split_line[0]
           examples.append(InputExample(guid=guid, text_a=text_a,
                                        text_b=text_b, label=label))
-          labels.append(label)
-      return examples, labels
+          #labels.append(label)
+      return examples #, labels
 
 
   # def get_test_examples(self, data_dir):
@@ -846,7 +846,7 @@ class SelfProcessor(DataProcessor):
       reader = reader[0:50]
 
       examples = []
-      labels = []
+      #labels = []
       for index, line in enumerate(reader):
           guid = 'train-%d' % index
           split_line = line.strip().split("\t")
@@ -855,8 +855,8 @@ class SelfProcessor(DataProcessor):
           label = split_line[0]
           examples.append(InputExample(guid=guid, text_a=text_a,
                                        text_b=text_b, label=label))
-          labels.append(label)
-      return examples, labels
+          #labels.append(label)
+      return examples#, labels
 
   # def get_labels(self):
   #   """See base class."""
@@ -948,14 +948,17 @@ def main(_):
   if FLAGS.do_train:
     # train_examples = processor.get_train_examples(FLAGS.data_dir)
     train_examples, train_labels = processor.get_train_examples(FLAGS.data_dir)
-    label_list = processor.get_labels(train_labels)
+    global label_list
+    label_list= processor.get_labels(train_labels)
+    print ("label_list:",label_list)
+
     num_train_steps = int(
         len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
     num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
 
   model_fn = model_fn_builder(
       bert_config=bert_config,
-      num_labels= 10,#len(label_list),
+      num_labels= len(label_list),#10
       init_checkpoint=FLAGS.init_checkpoint,
       learning_rate=FLAGS.learning_rate,
       num_train_steps=num_train_steps,
@@ -989,9 +992,7 @@ def main(_):
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
   if FLAGS.do_eval:
-    # eval_examples = processor.get_dev_examples(FLAGS.data_dir)
-    eval_examples, eval_labels = processor.get_dev_examples(FLAGS.data_dir)
-    label_list=processor.get_labels(eval_labels)
+    eval_examples= processor.get_dev_examples(FLAGS.data_dir)
 
     num_actual_eval_examples = len(eval_examples)
     if FLAGS.use_tpu:
@@ -1038,9 +1039,7 @@ def main(_):
         writer.write("%s = %s\n" % (key, str(result[key])))
 
   if FLAGS.do_predict:
-    # predict_examples = processor.get_test_examples(FLAGS.data_dir)
-    predict_examples,predict_labels = processor.get_test_examples(FLAGS.data_dir)
-    label_list=processor.get_labels(predict_labels)
+    predict_examples = processor.get_test_examples(FLAGS.data_dir)
 
     num_actual_predict_examples = len(predict_examples)
     if FLAGS.use_tpu:
@@ -1076,6 +1075,7 @@ def main(_):
       num_written_lines = 0
       tf.logging.info("***** Predict results *****")
       for (i, prediction) in enumerate(result):
+        print (i, prediction)
         probabilities = prediction["probabilities"]
         if i >= num_actual_predict_examples:
           break
