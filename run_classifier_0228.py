@@ -793,6 +793,7 @@ class SelfProcessor(DataProcessor):
       file_path = os.path.join(data_dir, 'cnews.train.txt')  # cnews.train.txt
       with open(file_path, 'r', encoding="utf-8") as f:
           reader = f.readlines()
+      random.seed(0)
       random.shuffle(reader)  # 注意要shuffle
       reader = reader[0:1000]
 
@@ -817,7 +818,7 @@ class SelfProcessor(DataProcessor):
       file_path = os.path.join(data_dir, 'cnews.val.txt')
       with open(file_path, 'r', encoding="utf-8") as f:
           reader = f.readlines()
-      random.shuffle(reader)  # 注意要shuffle
+      random.shuffle(reader)
       reader = reader[0:200]
 
       examples = []
@@ -919,9 +920,6 @@ def main(_):
   if task_name not in processors:
     raise ValueError("Task not found: %s" % (task_name))
 
-  processor = processors[task_name]()
-
-  # label_list = processor.get_labels()
 
   tokenizer = tokenization.FullTokenizer(
       vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
@@ -945,12 +943,18 @@ def main(_):
   train_examples = None
   num_train_steps = None
   num_warmup_steps = None
+
+  processor = processors[task_name]()
+  train_examples, train_labels = processor.get_train_examples(FLAGS.data_dir)
+  global label_list
+  label_list = processor.get_labels(train_labels)
+  print("label_list:", label_list)
+
   if FLAGS.do_train:
-    # train_examples = processor.get_train_examples(FLAGS.data_dir)
-    train_examples, train_labels = processor.get_train_examples(FLAGS.data_dir)
-    global label_list
-    label_list= processor.get_labels(train_labels)
-    print ("label_list:",label_list)
+    # train_examples, train_labels = processor.get_train_examples(FLAGS.data_dir)
+    # global label_list
+    # label_list= processor.get_labels(train_labels)
+    # print ("label_list:",label_list)
 
     num_train_steps = int(
         len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
@@ -1075,7 +1079,7 @@ def main(_):
       num_written_lines = 0
       tf.logging.info("***** Predict results *****")
       for (i, prediction) in enumerate(result):
-        print (i, prediction)
+        # print (i, prediction)
         probabilities = prediction["probabilities"]
         if i >= num_actual_predict_examples:
           break

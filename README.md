@@ -96,10 +96,10 @@ export TRAINED_CLASSIFIER=./tmp/mayi_output  这是上一步训练后的输出�
 #### 训练
 - 参考任务1，运行run_classifier_0228.py，修改task_name，data_dir和output_dir即可
 >训练结果  
-eval_accuracy = 0.97  
-eval_loss = 0.13095187  
+eval_accuracy = 0.955  
+eval_loss = 0.21101545  
 global_step = 93  
-loss = 0.13095187  
+loss = 0.21101545  
 
 #### 预测
 - 参考任务1，运行run_classifier_0228.py，修改task_name，data_dir和output_dir即可
